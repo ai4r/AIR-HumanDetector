@@ -11,6 +11,27 @@ Originally forked from DarkFlow (https://github.com/thtrieu/darkflow)
 
 Python3, tensorflow 1.0, numpy, opencv 3.
 
+## Getting Started
+
+1. Download weight file from <https://drive.google.com/drive/folders/1a8n649fCmbumeyoBIAU9nh1kIFnt6abp?usp=sharing>
+	
+2. Put /bin folder at base directory
+	
+3. Build the Cython extensions in place. NOTE: If installing this way you will have to use `./flow` in the cloned darkflow directory instead of `flow` as darkflow is not installed globally.
+    ```
+    python3 setup.py build_ext --inplace
+    ```
+
+4. Let pip install darkflow globally in dev mode (still globally accessible, but changes to the code immediately take effect)
+    ```
+    pip install -e .
+    ```
+
+5. Or install with pip globally
+    ```
+    pip install .
+    ```
+
 ## Usage
 
 ```
