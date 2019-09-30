@@ -13,7 +13,7 @@ Python3, tensorflow 1.0, numpy, opencv 3.
 
 ## Getting Started
 
-1. Download weight file from <https://drive.google.com/drive/folders/1a8n649fCmbumeyoBIAU9nh1kIFnt6abp?usp=sharing>
+1. Download weight file from [HERE](https://drive.google.com/drive/folders/1a8n649fCmbumeyoBIAU9nh1kIFnt6abp?usp=sharing).
 	
 2. Put /bin folder at base directory
 	
