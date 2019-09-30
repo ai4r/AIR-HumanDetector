@@ -56,3 +56,7 @@ while True:
 ```
 
 'img' must be ndarray type
+
+## LICENSE
+
+This software is a part of AIR, and follows the [AIR License and Service Agreement]<https://github.com/ai4r/AIR-Act2Act/blob/master/LICENSE.md>.
