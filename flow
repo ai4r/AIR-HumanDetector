@@ -1,0 +1,43 @@
+#! /usr/bin/env python
+
+import sys
+from darkflow.cli import cliHandler
+
+pb_args = [
+    'flow',
+    '--model', 'cfg/yolo-body2.cfg',
+    '--load', '238500',
+    '--savepb',
+    '--dataset', '../../Dataset/YOLO-Face/image',
+    '--annotation', '../../Dataset/YOLO-Face/Annotations'
+]
+
+model = 'cfg/yolo-a.cfg'
+batch_size = 8
+save_step = 1000
+save_and_test = 2000
+path_name = 'Sitting+VOC'
+load_count = 1800
+
+if load_count > 0 :
+    load_count = str(load_count)
+else:
+    load_count = 'bin/yolo.weights'
+
+train_args = [
+    'flow',
+    '--train',
+    '--model', model,
+    '--load',load_count,
+    '--dataset', '/media/data/PTMP/HumanCare/' + path_name + '/Images',
+    '--annotation', '/media/data/PTMP/HumanCare/' + path_name + '/Annotations',
+    '--trainer', 'adam',
+    '--lr', '1e-5',
+    '--batch', str(batch_size),
+    '--momentum', '0.0',
+    '--save', str(save_step),
+    '--save_and_test', str(save_and_test),
+    '--gpu', '1.0'
+]
+
+cliHandler(train_args)

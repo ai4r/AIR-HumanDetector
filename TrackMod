@@ -1,0 +1,124 @@
+
+import sys
+import cv2
+import elm.DataProvider as DataProvider
+
+import tracking.Tracking as Tracking
+
+from darkflow.net.build import TFNet
+
+MIN_CONF_THRESHOLD = 0.05
+DET_CONF_THRESHOLD = 0.1
+
+FEATURE_GRID = [4, 4, -1]
+
+TRACKER_TYPE = ''
+USE_CMATCH = True
+
+det_net = None
+current_tracks = []
+
+def init(conf_file, model_file) :
+    global det_net
+
+    # Setting for Detection
+    options = {"model": conf_file, "load": model_file, "threshold": MIN_CONF_THRESHOLD, 'gpu': 2.0}
+    det_net = TFNet(options)
+
+    # Setting for Tracking
+    def get_feature(rect):
+        f = det_net.return_features([rect], FEATURE_GRID)
+        return f
+
+    Tracking.getFeature = get_feature
+
+
+def run(image):
+    global current_tracks
+
+    result = det_net.return_predict(image)
+
+    new_tracks = []
+    new_tracks_rect = []
+
+    candidate_tracks = []
+    candidate_tracks_rect = []
+
+    for r in result:
+        class_name = r['label']
+        conf = r['confidence']
+
+        if not class_name in ['person', 'body', 'face']:
+            continue
+
+        if class_name == 'person':
+            class_name = 'body'
+
+        t = Tracking.Track(class_name, r['topleft']['x'], r['topleft']['y'], r['bottomright']['x'],
+                           r['bottomright']['y'], conf, image)
+
+        # High-Confidence Tracks
+        if t.type == 'body':
+            if conf >= DET_CONF_THRESHOLD:
+                new_tracks.append(t)
+                new_tracks_rect.append(t.rect)
+            # Low-Confidence Tracks
+            elif conf >= DET_CONF_THRESHOLD:
+                candidate_tracks.append(t)
+                candidate_tracks_rect.append(t.rect)
+        elif t.type == 'face':
+            if conf >= DET_CONF_THRESHOLD * 1:
+                new_tracks.append(t)
+                new_tracks_rect.append(t.rect)
+            # Low-Confidence Tracks
+            elif conf >= MIN_CONF_THRESHOLD:
+                candidate_tracks.append(t)
+                candidate_tracks_rect.append(t.rect)
+
+    # Setting for Candidate Match
+    new_tracks_features = det_net.return_features(new_tracks_rect, FEATURE_GRID)
+    for idx, tr in enumerate(new_tracks):
+        new_tracks[idx].feature = new_tracks_features[idx]
+
+    candidate_tracks_features = det_net.return_features(candidate_tracks_rect, FEATURE_GRID)
+    for idx, tr in enumerate(candidate_tracks):
+        candidate_tracks[idx].feature = candidate_tracks_features[idx]
+
+    Tracking.candidate_tracks = candidate_tracks
+    Tracking.candidate_features = candidate_tracks_features
+
+    # Update
+    Tracking.update(current_tracks, new_tracks, image)
+
+
+def close():
+    det_net = None
+
+def main(argv=None):
+    global USE_CMATCH
+
+    dp = DataProvider.IllmenauDataProvider('/media/data/PTMP/PeopleTracking', 'Chair')
+    # dp = DataProvider.VideoDataProvider(0)
+
+    init(conf_file="cfg/yolo-f.cfg", model_file=8000)
+
+    USE_CMATCH = True
+
+    while True:
+        img = dp.get()
+
+        if img is None:
+            break
+
+        run(img)
+
+        for tr in current_tracks:
+            cv2.rectangle(img, tr.tl, tr.br, (0, 255, 0), 1)
+
+        cv2.imshow('Result', img)
+        key = cv2.waitKey(20)
+        if key == ord('q') :
+            break
+
+if __name__ == "__main__":
+    sys.exit(main())
