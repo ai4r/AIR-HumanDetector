@@ -6,7 +6,6 @@ from collections import deque
 import elm.Utilities as util
 
 import tracking.KCFTracker as KCFTracker
-import tracking.TLDTracker as TLDTracker
 import tracking.MFTracker as MFTracker
 import tracking.TMTracker as TMTracker
 import tracking.KLTTracker as KLTTracker
@@ -207,8 +206,6 @@ class Track:
 
             if self.tracker_type == 'KCF':
                 self.tracker = KCFTracker.Tracker(last_img, self.last_rect)
-            elif self.tracker_type == 'TLD':
-                self.tracker = TLDTracker.Tracker(last_img, self.last_rect)
             elif self.tracker_type == 'MF':
                 self.tracker = MFTracker.Tracker(last_img, self.last_rect)
             elif self.tracker_type == 'TM':

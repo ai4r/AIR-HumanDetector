@@ -9,50 +9,39 @@ Originally forked from DarkFlow (https://github.com/thtrieu/darkflow)
 
 ## Dependencies
 
-Python3, tensorflow 1.0, numpy, opencv 3.
+opencv-python==4.2.0.34
+
+scipy==1.1.0
+
+tensorflow-gpu==1.12.0
+
+tensorlayer==1.11.0
 
 ## Getting Started
 
-1. Download weight file from [HERE](https://drive.google.com/drive/folders/1a8n649fCmbumeyoBIAU9nh1kIFnt6abp?usp=sharing).
-	
-2. Put /bin folder at base directory
-	
-3. Build the Cython extensions in place. NOTE: If installing this way you will have to use `./flow` in the cloned darkflow directory instead of `flow` as darkflow is not installed globally.
+1. Download the bin and ckpt folder which contains weight files from [HERE](https://drive.google.com/drive/folders/1MrRMU1dVP_WLaEqxMGfhB5HPeBwA22Ac?usp=sharing) and place it at base directory.
+
+2. Install the darkflow
     ```
     python3 setup.py build_ext --inplace
     ```
 
-4. Let pip install darkflow globally in dev mode (still globally accessible, but changes to the code immediately take effect)
+3. Install the dependencies
     ```
-    pip install -e .
-    ```
-
-5. Or install with pip globally
-    ```
-    pip install .
+    pip install -r requirements.txt
     ```
 
 ## Usage
 
-```
-init(conf_file="cfg/yolo-f.cfg", model_file=8000)
+1. Demo video
+    ```
+    python Demo.py
+    ```
 
-USE_CMATCH = True
-while True:
-	img = cv2.imread('test.txt')
+2. Test with a given video
+   ```
+   python Demo.py --videoPath=VIDEOPATH
+   ```
 
-	if img is None:
-	    break
+Press q button to quit the program
 
-	run(img)
-
-	for tr in current_tracks:
-	    cv2.rectangle(img, tr.tl, tr.br, (0, 255, 0), 1)
-
-	cv2.imshow('Result', img)
-	key = cv2.waitKey(20)
-	if key == ord('q') :
-	    break
-```
-
-'img' must be ndarray type
