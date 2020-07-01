@@ -13,7 +13,7 @@ opencv-python==4.2.0.34
 
 scipy==1.1.0
 
-tensorflow-gpu==1.12.0
+tensorflow-gpu==1.15.2
 
 tensorlayer==1.11.0
 
