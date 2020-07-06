@@ -7,6 +7,10 @@ Originally forked from DarkFlow (https://github.com/thtrieu/darkflow)
 
 <https://youtu.be/ZLUshr_FVL8>
 
+## Environment
+
+Test on Ubuntu 16.04, Python3.5.2
+
 ## Dependencies
 
 opencv-python==4.2.0.34
