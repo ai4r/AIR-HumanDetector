@@ -47,5 +47,12 @@ tensorlayer==1.11.0
    python Demo.py --videoPath=VIDEOPATH
    ```
 
+3. Simple Test File
+   ```
+   python HumanDetector.py
+   ```
+
 Press q button to quit the program
+
+
 
