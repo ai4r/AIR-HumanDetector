@@ -9,17 +9,19 @@ Originally forked from DarkFlow (https://github.com/thtrieu/darkflow)
 
 ## Environment
 
-Test on Ubuntu 16.04, Python3.5.2
+Test on Ubuntu 16.04, Python3.5.2, Python 2.7.12
 
 ## Dependencies
 
-opencv-python==4.2.0.34
+opencv-python> 4.2.0.32
 
-scipy==1.1.0
+scipy>1.2.0
 
-tensorflow-gpu==1.15.2
+tensorflow-gpu==1.12.0
 
 tensorlayer==1.11.0
+
+cython==0.29.21
 
 ## Getting Started
 

@@ -2,10 +2,15 @@ import math
 import cv2
 import numpy as np
 from collections import deque
+import sys
+
+sys.path.append("../elm")
+
 
 import elm.Utilities as util
 
 import tracking.KCFTracker as KCFTracker
+#import tracking.TLDTracker as TLDTracker
 import tracking.MFTracker as MFTracker
 import tracking.TMTracker as TMTracker
 import tracking.KLTTracker as KLTTracker
@@ -18,17 +23,21 @@ MOVE_DELTA = (0.5, 0.5)
 BOUNDARY_PADDING = 0.95
 CENTER_OBJECT_CONFIDENCE_THRESHOLD = 0.3
 BOUNDINGBOX_WEIGHT = 0.5
-KEEP_DATA_LENGTH = 5
+# change param from 5 to 100
+#KEEP_DATA_LENGTH = 5
+KEEP_DATA_LENGTH = 100
 CM_NODE_RATIO = 1.0
 CM_MAX_VARIATION = 0.5
 CM_CONFIDENCE = 0.5
-RECALL_LENGTH = 240
+# change param from 240 to 1000
+RECALL_LENGTH = 1000
+#RECALL_LENGTH = 240
 RECALL_MATCH_THRESHOLD = 5
 RECALL_CONFIDENCE = 0.3
 BODY_PART_THRESHOLD = 0.3
 
 class Track:
-    def __init__(self, type, x1, y1, x2, y2, conf, img=None):
+    def __init__(self, type, x1, y1, x2, y2, conf, img=None, featureType=''):
         self.id = -1
         self.type = type
         self.confidence = conf
@@ -44,6 +53,7 @@ class Track:
         self.last_frame = -1
         self.tracker = None
 
+        self.featureType = featureType
         self.tracker_type = ''
         self.tracker_limit = 60
         self.use_cmatch = False
@@ -87,9 +97,15 @@ class Track:
         dh = new_track.rect[3] - self.rect[3]
         geo_dist = math.sqrt((dx * dx) + (dy * dy) + ((dw * dw) + (dh * dh) / 2))
 
-        feature_dist = 0
-        if self.feature is not None:
-            feature_dist = np.sum(np.sqrt(np.power(self.feature - new_track.feature, 2)))
+        if(self.featureType == 'yolo'):
+            feature_dist = 0
+            if self.feature is not None:
+                feature_dist = np.sum(np.sqrt(np.power(self.feature - new_track.feature, 2)))
+        elif(self.featureType == 'colorHist'):
+            feature_dist = 0
+            if self.feature is not None:
+                # calc method: 0: correlation(higher similar) 1: chi-square(lower similar) 2: intersection(higher similar) 3: bhattacharyya(lower similar)
+                feature_dist = 10*(1-cv2.compareHist(self.feature, new_track.feature, 0))
 
         return geo_dist + feature_dist
 
@@ -206,6 +222,8 @@ class Track:
 
             if self.tracker_type == 'KCF':
                 self.tracker = KCFTracker.Tracker(last_img, self.last_rect)
+            #elif self.tracker_type == 'TLD':
+            #    self.tracker = TLDTracker.Tracker(last_img, self.last_rect)
             elif self.tracker_type == 'MF':
                 self.tracker = MFTracker.Tracker(last_img, self.last_rect)
             elif self.tracker_type == 'TM':
@@ -225,7 +243,8 @@ class Track:
         n_tr = None
         if new_roi is not None :
             if self.classifier is not None and feature_func is not None:
-                f = feature_func(new_roi)
+                #f = feature_func(new_roi)
+                f = feature_func(img, [new_roi])
                 data = np.array(f)
                 test_data = elm.DataInput.DataSet(data, None)
                 resp = self.classifier.predict(test_data.images)
@@ -235,7 +254,7 @@ class Track:
                     return None
                 '''
 
-            n_tr = Track('[Update]', new_roi[0], new_roi[1], new_roi[0] + new_roi[2], new_roi[1] + new_roi[3], self.tracker.confidence, None)
+            n_tr = Track('[Update]', new_roi[0], new_roi[1], new_roi[0] + new_roi[2], new_roi[1] + new_roi[3], self.tracker.confidence, None, featureType=self.featureType)
             if self.last_state == 'Search':
                 self.tracking_count += 1
                 if self.tracking_count > self.tracker_limit:
@@ -374,7 +393,7 @@ class Track:
             self.face.draw(img)
 
     def copy(self):
-        t = Track(self.type, self.tl[0], self.tl[1], self.br[0], self.br[1], self.confidence)
+        t = Track(self.type, self.tl[0], self.tl[1], self.br[0], self.br[1], self.confidence, featureType=self.featureType)
         t.dx = self.dx
         t.dy = self.dy
         t.last_state = self.last_state
@@ -391,9 +410,10 @@ class Track:
         return self.rect[2] * self.rect[3]
 
 class Tracking:
-    def __init__(self, tracker_type='', tracker_limit=60, use_cmatch=False):
+    def __init__(self, tracker_type='', tracker_limit=60, use_cmatch=False, featureType=''):
         self.UID = 0
         self.tracker_type = tracker_type
+        self.featureType = featureType
         self.tracker_limit = tracker_limit
         self.use_cmatch = use_cmatch
 
