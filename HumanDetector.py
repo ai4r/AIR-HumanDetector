@@ -216,7 +216,11 @@ def test():
 
             if(len(res.current_tracks) > 0 and DEBUG):
                 cv2.imshow('currentFrame', img_resize)
-                cv2.waitKey()
+                key = cv2.waitKey(1)
+
+                if key == ord('q'):
+                    break
+
 
 
 if __name__ == "__main__":
