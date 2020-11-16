@@ -15,12 +15,15 @@ import tracking.MFTracker as MFTracker
 import tracking.TMTracker as TMTracker
 import tracking.KLTTracker as KLTTracker
 
+import Profile
+
 import elm.NaiveELM
 import elm.DataInput
 
 MAX_DELTA = (0.5, 0.5)
 MOVE_DELTA = (0.5, 0.5)
 BOUNDARY_PADDING = 0.95
+BOUNDARY_DENY_PADDING = 0.01
 CENTER_OBJECT_CONFIDENCE_THRESHOLD = 0.3
 BOUNDINGBOX_WEIGHT = 0.5
 # change param from 5 to 100
@@ -35,6 +38,9 @@ RECALL_LENGTH = 1000
 RECALL_MATCH_THRESHOLD = 5
 RECALL_CONFIDENCE = 0.3
 BODY_PART_THRESHOLD = 0.3
+
+REGISTER_MODEL_OVERLAP_RATIO=0.2
+ASSIGN_CONFIDENCE = 0.4
 
 class Track:
     def __init__(self, type, x1, y1, x2, y2, conf, img=None, featureType=''):
@@ -331,6 +337,7 @@ class Track:
                     self.pos_features.clear()
                     self.neg_features.clear()
 
+
                     self.log('Message','Track-%d online learning started' % self.id)
 
                 elif len(self.pos_features) > 0 and len(self.neg_features) > 0 :
@@ -410,10 +417,11 @@ class Track:
         return self.rect[2] * self.rect[3]
 
 class Tracking:
-    def __init__(self, tracker_type='', tracker_limit=60, use_cmatch=False, featureType=''):
+    def __init__(self, tracker_type='', tracker_limit=60, use_cmatch=False, featureType='', classifierType=''):
         self.UID = 0
         self.tracker_type = tracker_type
         self.featureType = featureType
+        self.classifierType = classifierType
         self.tracker_limit = tracker_limit
         self.use_cmatch = use_cmatch
 
@@ -424,12 +432,14 @@ class Tracking:
         self.last_image = None
         self.feature_func = None
         self.event_func = None
+        self.profile_classifier = Profile.ProfileClassifier(self.classifierType)
 
     def log(self, type, data):
         if self.event_func is not None:
             self.event_func(self, type, data)
 
     def update(self, old_list, new_list, img):
+        found_uid_list = []
         lost_target = []
 
         area_list = []
@@ -466,10 +476,16 @@ class Tracking:
                 tr.update(n_tr, img, BOUNDINGBOX_WEIGHT, candidate_features=self.candidate_features)
                 tr.update_parts(new_list, img)
                 n_tr.id = tr.id
+                found_uid_list.append(tr.id)
                 tr.last_frame = self.frameNo
                 tr.last_state = 'Match'
                 tr.match_count += 1
                 tr.tracker = None
+
+                # Update Profile LHW
+                self.profile_classifier.update_profile_with_uid(n_tr.id, n_tr.feature, img, n_tr.rect, n_tr.confidence)
+
+
 
         # Remove lost target from old list
         for tr in lost_target:
@@ -480,12 +496,11 @@ class Tracking:
             if tr.match_count > RECALL_MATCH_THRESHOLD:
                 self.lost_tracks.append(tr)
 
-        # Append new one
-        for n_tr in new_list:
+        for idx, n_tr in enumerate(new_list):
             global UID
-            if n_tr.id < 0 and n_tr.type == 'body' :
+            if n_tr.id < 0 and n_tr.type == 'body':
                 isNew = True
-
+                isOverlap = False
                 # Center prior - if it appears suddenly, the confidence should be high
                 if n_tr.rect[0] > (img.shape[1] * (1 - BOUNDARY_PADDING)) or (n_tr.rect[0] + n_tr.rect[2]) > img.shape[1] or \
                     n_tr.rect[1] > (img.shape[0] * (1 - BOUNDARY_PADDING)) or (n_tr.rect[1] + n_tr.rect[3]) > img.shape[0]:
@@ -507,7 +522,21 @@ class Tracking:
 
                     if wrap_around and n_tr.confidence > old_list[wrap_idx].confidence:
                         old_list[wrap_idx].update(n_tr, img, 1.0)
+                if isNew:
+                    # overlap with old_list
+                    for idx, tr in enumerate(old_list):
+                        overlap_ratio = util.getOverlapRatio(n_tr.rect, tr.rect, is_rect=True)
+                        if overlap_ratio > REGISTER_MODEL_OVERLAP_RATIO:
+                            isNew = False
+                            break
+                if isNew:
+                    # Positioning on boundary is not allowed...
+                    x1, y1, x2, y2 = n_tr.rect[0], n_tr.rect[1], n_tr.rect[0] + n_tr.rect[2], n_tr.rect[1] + n_tr.rect[3]
 
+                    if x1 < (BOUNDARY_DENY_PADDING * img.shape[1]) or x2 > img.shape[1] * (1-BOUNDARY_DENY_PADDING)\
+                            or y1 < (BOUNDARY_DENY_PADDING * img.shape[0]) or  y2 > img.shape[0] * (1-BOUNDARY_DENY_PADDING):
+                        isNew = False
+                        break
                 if isNew:
                     # Recall the lost tracks, should be recovered?
                     for tr in self.lost_tracks:
@@ -523,11 +552,69 @@ class Tracking:
                                 self.log('Message', 'Track-%d observed before %d frames' % (n_tr.id, time_diff))
                                 break
 
-                    # New track
-                    if n_tr.id < 0:
-                        n_tr.id = self.UID
-                        self.UID += 1
-                    old_list.append(n_tr)
+
+                    if isOverlap == False:
+                        # Recover with profile LHW
+                        assign_uid_list = self.profile_classifier.classify_profile(n_tr.feature)
+                        #assign_uid = self.profile_classifier.classify_profile_svm(n_tr.feature)
+                        if len(assign_uid_list) == 0:
+                            assign_uid = -1
+                        else:
+                            available_list = [0 for i in range(len(assign_uid_list))]
+                            assign_uid = -1
+                            for j in range(len(assign_uid_list)):
+                                uid_exist = False
+                                for i in range(len(found_uid_list)):
+                                    if assign_uid_list[j][1] == found_uid_list[i]:
+                                        uid_exist = True
+                                if uid_exist == False:
+                                    assign_uid = assign_uid_list[j][1]
+                                    break
+
+                        if n_tr.confidence >= ASSIGN_CONFIDENCE and assign_uid >= 0:
+                            n_tr.id = assign_uid
+                        if n_tr.id >= 0:
+                            for tr in self.lost_tracks:
+                                if tr.id == n_tr.id:
+                                    n_tr.classifier = tr.classifier
+                                    tr.id = -1
+                                    break
+
+                        # New track
+                        #if n_tr.id < 0 and n_tr.confidence >= CM_CONFIDENCE:
+
+                        if n_tr.id < 0:
+                            n_tr.id = self.UID
+                            self.UID += 1
+                            # register profile and update LHW
+                            self.profile_classifier.register_profile(n_tr.id, n_tr.feature, img, n_tr.rect, n_tr.confidence)
+                        else:
+                            isNew = False
+
+                        """
+                        img_cropped = img[n_tr.rect[1]:n_tr.rect[1] + n_tr.rect[3],
+                                      n_tr.rect[0]:n_tr.rect[0] + n_tr.rect[2]]
+
+                        for each_uid in range(self.UID):
+                            each_profile = self.profile_classifier.get_profile_with_uid(each_uid)
+                            # self.rect_image_list.append([current_image, current_rect])
+                            curr_img, curr_rect = each_profile.rect_image_list[-1][0], each_profile.rect_image_list[-1][
+                                1]
+                            cv2.imshow(str(each_profile.uid), curr_img[curr_rect[1]:curr_rect[1] + curr_rect[3],
+                                                              curr_rect[0]:curr_rect[0] + curr_rect[2]])
+
+                        cv2.imshow('curr_img', img_cropped)
+                        cv2.waitKey()
+                        """
+
+
+
+                        old_list.append(n_tr)
+                """
+                img_cropped = img[n_tr.rect[1]:n_tr.rect[1]+n_tr.rect[3], n_tr.rect[0]:n_tr.rect[0]+n_tr.rect[2]]
+                cv2.imshow('test', img_cropped)
+                cv2.waitKey()
+                """
 
         # Forget the old lost tracks
         lost_target = []
@@ -540,6 +627,7 @@ class Tracking:
                     self.log('Message', 'Track-%d forgotten' % tr.id)
 
         self.lost_tracks = lost_target
+
 
         # Remove redundant tracks
         overlap_target = []
@@ -559,10 +647,11 @@ class Tracking:
                 elif util.getOverlapRatio(tr_1.rect, tr_2.rect, is_rect=True) > 0.8:
                     if tr_1.confidence < tr_2.confidence:
                         overlap_target.append(tr_1)
-                        tr_2.id = tr_1.id
+                        #tr_2.id = tr_1.id
                     else:
                         overlap_target.append(tr_2)
-                        tr_1.id = tr_2.id
+                        #tr_1.id = tr_2.id
+
 
         for tr in overlap_target:
             try:
