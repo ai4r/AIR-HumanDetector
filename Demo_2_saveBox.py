@@ -6,7 +6,6 @@ import DataProvider
 import numpy as np
 
 from calcHistogram import calcHistogram3D
-from calcHistogram import calcOrigin
 
 
 

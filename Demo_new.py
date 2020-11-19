@@ -27,9 +27,9 @@ VIDEO_PATH = './testSample/video/lab02-18-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-09-2p.mp4'#OK
 #VIDEO_PATH = './testVideo/test_b-01-01-2p.mp4'#One mistake
 #VIDEO_PATH = './testVideo/test_b-02-02-2p.mp4'#Worst case
-#VIDEO_PATH = './testVideo/test_b-03-02-2p.mp4'#OK
+VIDEO_PATH = './testVideo/test_b-03-02-2p.mp4'#OK
 #VIDEO_PATH = './testVideo/test_a-05-10-2p.mp4'#Problem
-VIDEO_PATH = './testVideo/test_a-02-03-2p.mp4'#BEST
+#VIDEO_PATH = './testVideo/test_a-02-03-2p.mp4'#BEST
 
 
 def draw_panel(img_new, profile_list):

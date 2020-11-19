@@ -1,2 +1,6 @@
 ckpt/
 *.pyc
+darkflow/*.pyc
+tracking/*.pyc
+elm/*.pyc
+
