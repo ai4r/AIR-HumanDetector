@@ -48,11 +48,6 @@ cython==0.29.21
     python Demo_new.py
     ```
 
-3. Simple Test File
-   ```
-   python HumanDetector.py
-   ```
-
 Press q button to quit the program.
 Press c button to stop the program, press any key to continue.
 
