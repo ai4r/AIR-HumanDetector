@@ -9,9 +9,10 @@ from sklearn import svm
 from sklearn.neighbors import KNeighborsClassifier
 
 
-MAX_KEEP_IMAGE_COUNT = 100
+MAX_KEEP_IMAGE_COUNT = 200
 PROFILE_ASSIGN_DISTANCE_THRESHOLD = 0.5
-PROFILE_ASSIGN_SVM_THRESHOLD = 0.5
+PROFILE_ASSIGN_SVM_THRESHOLD = 0.8
+
 
 CLASSIFIER_DISTANCE_NEGATIVE_RATIO = 1.5
 MAX_KEEP_PROFILE = 3
@@ -93,9 +94,30 @@ class ProfileClassifier:
         if res_list[0][0] > PROFILE_ASSIGN_SVM_THRESHOLD:
             return res_list
         else:
+            return self.classify_profile_color(current_feature)
+
+
+
+
+    def classify_profile_color(self, current_feature):
+        avg_dist_list = []
+        for each_profile in self.profile_list:
+            avg_dist_list.append((each_profile.uid, each_profile.get_distance(current_feature)))
+
+        idx_list = [i for i in range(len(self.profile_list))]
+        res_list = []
+
+        for i in range(len(idx_list)):
+            res_list.append((avg_dist_list[i][1], avg_dist_list[i][0]))
+
+        res_list = sorted(res_list, key=lambda l: l[0], reverse=False)
+
+        if res_list[0][0] > PROFILE_ASSIGN_DISTANCE_THRESHOLD:
+            return res_list
+        else:
             return []
 
-
+        # return assigned uid
 
 
 
@@ -128,7 +150,7 @@ class ProfileClassifier:
 
             # return assigned uid
             if assign_success:
-                return [min_uid]
+                return [[1.0,min_uid]]
             # fail to found uid; -1 --> register new object
             else:
                 return []

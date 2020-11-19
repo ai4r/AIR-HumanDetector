@@ -6,10 +6,11 @@ import DataProvider
 import numpy as np
 
 from calcHistogram import calcHistogram3D
+from calcHistogram import calcOrigin
 
 
 
-
+import tracking.Tracking_old as Tracking_old
 import tracking.Tracking as Tracking
 
 from darkflow.net.build import TFNet
@@ -19,15 +20,22 @@ event_log = []
 online_pos_images = []
 online_neg_images = []
 
-SAVEBBOX = True
+#SAVEBBOX = True
+
+SAVEBBOX = False
+
 cropping_ratio = (0.8, 0.8)
 
 DET_THRESHOLD=0.2
 MIN_DET_THRESHOLD=0.1
 
+origin_resize_ratio = (32, 32)
+
 
 FEATURETYPE = 'colorHist'
 #FEATURETYPE = 'yolo'
+#FEATURETYPE = 'origin'
+
 #CLASSIFIERTYPE = 'SVC'
 CLASSIFIERTYPE = 'KNC'
 
@@ -37,9 +45,207 @@ CLASSIFIERTYPE = 'KNC'
 
 colorBins = 0
 
+class TrackMod_dual:
+    def __init__(self, conf_file, model_file, det_threshold=DET_THRESHOLD, min_det_treshold=MIN_DET_THRESHOLD,tracker_type='',
+                 tracker_limit=60, use_cmatch=False):
+        self.track_list = ["KNN", "ELM"]
+        self.name = ''
+        self.conf_path = conf_file
+        self.model_path = model_file
+        self.det_threshold = det_threshold
+        self.min_det_threshold = min_det_treshold
+        self.use_cmatch = use_cmatch
+        self.feature_grid = [4, 4, -1]
+        self.current_tracks_old = []
+        self.current_tracks_new = []
+        self.show_online_data = False
+
+
+        self.tracking_new = Tracking.Tracking(tracker_type=tracker_type, use_cmatch=use_cmatch,
+                                                            tracker_limit=tracker_limit, featureType=FEATURETYPE,
+                                                            classifierType=CLASSIFIERTYPE)
+        if self.tracking_new.featureType == "colorHist":
+            self.tracking_new.feature_func = self.get_feature_color
+        elif self.tracking_new.featureType == "origin":
+            self.tracking_new.feature_func = self.get_feature_origin
+        self.tracking_old = Tracking_old.Tracking(tracker_type=tracker_type, use_cmatch=use_cmatch,
+                                                                tracker_limit=tracker_limit, featureType='yolo')
+        self.tracking_old.feature_func = self.get_feature_yolo
+
+        # Setting for Detection
+        self.det_net = None
+        options = {"model": conf_file, "load": model_file, "threshold": self.min_det_threshold, 'gpu': 2.0}
+        self.det_net = TFNet(options)
+
+    def get_feature_yolo(self,img, rectList):
+        f = self.det_net.return_features(rectList, self.feature_grid)
+        return f
+    def get_feature_color(self,img, rectList):
+        f = calcHistogram3D(img, rectList, cropping_ratio)
+        return f
+    def get_feature_origin(self, img, rectList):
+        f = calcOrigin(img, rectList, resize_ratio=origin_resize_ratio)
+        return f
+    def run_old(self, image, result):
+        new_tracks = []
+        new_tracks_rect = []
+
+        candidate_tracks = []
+        candidate_tracks_rect = []
+
+        for r in result:
+            class_name = r['label']
+            conf = r['confidence']
+
+            if not class_name in ['personTLD', 'person', 'body', 'face']:
+                continue
+
+            if class_name == 'personTLD':
+                class_name = 'body'
+
+            t = Tracking_old.Track(class_name, r['topleft']['x'], r['topleft']['y'], r['bottomright']['x'],
+                               r['bottomright']['y'], conf, image, featureType=self.tracking_old.featureType)
+
+            # High-Confidence Tracks
+            if t.type == 'body':
+                if conf >= self.det_threshold:
+                    new_tracks.append(t)
+                    new_tracks_rect.append(t.rect)
+                # Low-Confidence Tracks
+                elif conf >= self.min_det_threshold:
+                    candidate_tracks.append(t)
+                    candidate_tracks_rect.append(t.rect)
+            elif t.type == 'face':
+                if conf >= self.det_threshold * 1:
+                    new_tracks.append(t)
+                    new_tracks_rect.append(t.rect)
+                # Low-Confidence Tracks
+                elif conf >= self.min_det_threshold:
+                    candidate_tracks.append(t)
+                    candidate_tracks_rect.append(t.rect)
+
+        # Setting for Candidate Match
+        # new_tracks_features = self.det_net.return_features(new_tracks_rect, self.feature_grid)
+
+        new_tracks_features = self.get_feature_yolo(image, new_tracks_rect)
+
+        for idx, tr in enumerate(new_tracks):
+            new_tracks[idx].feature = new_tracks_features[idx]
+
+        candidate_tracks_features = self.get_feature_yolo(image, candidate_tracks_rect)
+
+        for idx, tr in enumerate(candidate_tracks):
+            candidate_tracks[idx].feature = candidate_tracks_features[idx]
+
+        while len(online_neg_images) > 17:
+            online_neg_images.remove(online_neg_images[0])
+
+        self.tracking_old.candidate_tracks = candidate_tracks
+        self.tracking_old.candidate_features = candidate_tracks_features
+
+        # Update
+        self.tracking_old.update(self.current_tracks_old, new_tracks, image)
+    def run_new(self, image, result):
+        new_tracks = []
+        new_tracks_rect = []
+
+        candidate_tracks = []
+        candidate_tracks_rect = []
+
+        for r in result:
+            class_name = r['label']
+            conf = r['confidence']
+
+            if not class_name in ['personTLD', 'person', 'body', 'face']:
+                continue
+
+            if class_name == 'personTLD':
+                class_name = 'body'
+
+            t = Tracking.Track(class_name, r['topleft']['x'], r['topleft']['y'], r['bottomright']['x'],
+                                   r['bottomright']['y'], conf, image, featureType=self.tracking_old.featureType)
+
+            # High-Confidence Tracks
+            if t.type == 'body':
+                if conf >= self.det_threshold:
+                    new_tracks.append(t)
+                    new_tracks_rect.append(t.rect)
+                # Low-Confidence Tracks
+                elif conf >= self.min_det_threshold:
+                    candidate_tracks.append(t)
+                    candidate_tracks_rect.append(t.rect)
+            elif t.type == 'face':
+                if conf >= self.det_threshold * 1:
+                    new_tracks.append(t)
+                    new_tracks_rect.append(t.rect)
+                # Low-Confidence Tracks
+                elif conf >= self.min_det_threshold:
+                    candidate_tracks.append(t)
+                    candidate_tracks_rect.append(t.rect)
+
+        # Setting for Candidate Match
+        # new_tracks_features = self.det_net.return_features(new_tracks_rect, self.feature_grid)
+
+        if self.tracking_new.featureType == "colorHist":
+            new_tracks_features = self.get_feature_color(image, new_tracks_rect)
+        elif self.tracking_new.featureType == "origin":
+            new_tracks_features = self.get_feature_origin(image, new_tracks_rect)
+
+        for idx, tr in enumerate(new_tracks):
+            new_tracks[idx].feature = new_tracks_features[idx]
+        if self.tracking_new.featureType == "colorHist":
+            candidate_tracks_features = self.get_feature_color(image, candidate_tracks_rect)
+        elif self.tracking_new.featureType == "origin":
+            candidate_tracks_features = self.get_feature_origin(image, candidate_tracks_rect)
+
+        for idx, tr in enumerate(candidate_tracks):
+            candidate_tracks[idx].feature = candidate_tracks_features[idx]
+
+        while len(online_neg_images) > 17:
+            online_neg_images.remove(online_neg_images[0])
+
+        self.tracking_new.candidate_tracks = candidate_tracks
+        self.tracking_new.candidate_features = candidate_tracks_features
+
+        # Update
+        self.tracking_new.update(self.current_tracks_new, new_tracks, image)
+
+    def run(self, image):
+        result = self.det_net.return_predict(image)
+        self.run_old(image, result)
+        self.run_new(image, result)
+
+    def draw_old(self, img):
+        for tr in self.current_tracks_old:
+            c = (0, 255, 0)
+            if tr.last_state == 'Search':
+                c = (255, 0, 0)
+            elif tr.last_state == 'CMatch':
+                c = (0, 255, 255)
+
+            cv2.putText(img, 'ID: %d' % tr.id, (tr.tl[0] + 20, tr.tl[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (0, 0, 255), 2)
+            cv2.rectangle(img, tr.tl, tr.br, c, 4)
+
+    def draw_new(self, img):
+        for tr in self.current_tracks_new:
+            c = (0, 255, 0)
+            if tr.last_state == 'Search':
+                c = (255, 0, 0)
+            elif tr.last_state == 'CMatch':
+                c = (0, 255, 255)
+
+            cv2.putText(img, 'ID: %d' % tr.id, (tr.tl[0] + 20, tr.tl[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (0, 0, 255), 2)
+            cv2.rectangle(img, tr.tl, tr.br, c, 4)
+
+    def close(self):
+        self.det_net = None
+
+
 class TrackMod:
     def __init__(self, conf_file, model_file, det_threshold=DET_THRESHOLD, min_det_treshold=MIN_DET_THRESHOLD, tracker_type='',
-                 tracker_limit=60, use_cmatch=False):
+                 tracker_limit=60, use_cmatch=False, old_tracker = False):
 
         self.name = ''
         self.conf_path = conf_file
@@ -53,17 +259,22 @@ class TrackMod:
 
         # feature type: yolo, colorHist, streetCosavelor, streetPattern, streetAuto
         # self.featureType = 'colorHist'
-        self.featureType = FEATURETYPE
+        if old_tracker:
+            self.featureType = 'yolo'
+            self.tracking = Tracking_old.Tracking(tracker_type=tracker_type, use_cmatch=use_cmatch,
+                                              tracker_limit=tracker_limit, featureType=self.featureType)
+        else:
+            self.featureType = FEATURETYPE
+            self.tracking = Tracking.Tracking(tracker_type=tracker_type, use_cmatch=use_cmatch,
+                                              tracker_limit=tracker_limit, featureType=self.featureType,
+                                              classifierType=CLASSIFIERTYPE)
 
-        self.tracking = Tracking.Tracking(tracker_type=tracker_type, use_cmatch=use_cmatch,
-                                          tracker_limit=tracker_limit, featureType=self.featureType, classifierType=CLASSIFIERTYPE)
+
 
         # Setting for Detection
         self.det_net = None
         options = {"model": conf_file, "load": model_file, "threshold": self.min_det_threshold, 'gpu': 2.0}
         self.det_net = TFNet(options)
-
-
 
         self.tracking.feature_func = self.get_feature
 
@@ -256,6 +467,7 @@ def tmp(argv=None):
 
     for each_file in file_list:
         dp = DataProvider.VideoDataProvider(each_file)
+
 
         resize_rate = 0.4
         t2 = TrackMod(conf_file="cfg/yolo-f.cfg", model_file=8000, det_threshold=DET_THRESHOLD, min_det_treshold=MIN_DET_THRESHOLD,
