@@ -39,22 +39,22 @@ cython==0.29.21
 
 ## Usage
 
-1. Demo video
+1. Demo video for comparing new and old models
     ```
-    python Demo.py
+    python Demo_dual.py
     ```
-
-2. Test with a given video
-   ```
-   python Demo.py --videoPath=VIDEOPATH
-   ```
+2. Demo video for the new model
+    ```
+    python Demo_new.py
+    ```
 
 3. Simple Test File
    ```
    python HumanDetector.py
    ```
 
-Press q button to quit the program
+Press q button to quit the program.
+Press c button to stop the program, press any key to continue.
 
 
 
