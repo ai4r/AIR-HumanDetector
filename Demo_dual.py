@@ -11,12 +11,13 @@ import DataProvider
 import numpy as np
 
 from calcHistogram import calcHistogram3D
-from Demo_2_saveBox import TrackMod_dual, TrackMod, DET_THRESHOLD, MIN_DET_THRESHOLD
+
+from tracking.TrackMod import TrackMod_dual, TrackMod, DET_THRESHOLD, MIN_DET_THRESHOLD
 
 demo_mode = "VIDEO"
 # demo_mode = "CAM"
 
-VIDEO_PATH = './testSample/video/lab02-18-2p.mp4'
+#VIDEO_PATH = './testSample/video/lab02-18-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-06-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-07-2p.mp4'
 

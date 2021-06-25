@@ -171,7 +171,8 @@ def draw_panel(img1, img2):
 
 def main(argv=None):
 
-    dp = DataProvider.VideoDataProvider('/media/data/ETRI-HumanCare/20181128_134433.AVI')
+    dp = DataProvider.VideoDataProvider('../data/normal/20181128_134433.AVI')
+    #dp = DataProvider.VideoDataProvider('../data/problem/Tracker(2crosssometimes).mp4')
     # dp = DataProvider.VideoDataProvider('/media/data/ETRI-HumanCare/20181128_134647.AVI')
     # dp = DataProvider.VideoDataProvider('/media/data/ETRI-HumanCare/20181128_134959.AVI')
 
@@ -181,14 +182,13 @@ def main(argv=None):
                   det_threshold=0.5, min_det_treshold=0.5,
                   use_cmatch=False, tracker_type='TM', tracker_limit=60)
 
-    t2 = TrackMod(conf_file="cfg/yolo-f.cfg", model_file=8000,
-                  det_threshold=0.2, min_det_treshold=0.1,
-                  use_cmatch=True, tracker_type='TM', tracker_limit=10)
+    t2 = TrackMod(conf_file="cfg/yolo-f.cfg", model_file=8000,det_threshold=0.2, min_det_treshold=0.1,use_cmatch=True, tracker_type='TM', tracker_limit=10)
 
     t2.tracking.event_func = event_handler
     t2.show_online_data = True
-
+    idx=0
     while True:
+        print(idx)
         img = dp.get()
         if img is None:
             break
@@ -206,8 +206,10 @@ def main(argv=None):
 
         cv2.imshow('Tracking Result', panel)
         key = cv2.waitKey(1)
+
         if key == ord('q') :
             break
+        idx+=1
 
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

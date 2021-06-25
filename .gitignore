@@ -1,6 +1,12 @@
 ckpt/
+bin/
 *.pyc
 darkflow/*.pyc
 tracking/*.pyc
 elm/*.pyc
-
+.idea/
+venv/
+openvino/openvino_lib
+build
+summary
+darkflow/cython_utils/*.so

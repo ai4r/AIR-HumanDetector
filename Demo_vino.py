@@ -358,13 +358,7 @@ def own_vino_demo_single(video_path, feature_type, classifier_type):
 
 
 
-def own_vino_demo():
-    # BEST
-    #video_path = "data/human_track_data_kaist_realenv/video/test_a'-04-03-3p.mp4"
-    # WORST
-    #video_path = 'data/human_track_data_kaist_realenv/video/test_c-02-02-3p.mp4'
-    video_path = 'testSample/video/lab02-18-2p.mp4'
-
+def own_vino_demo(video_path):
     feature_type = 'vino_reid'
     classifier_type = 'KNC'
 
@@ -372,20 +366,9 @@ def own_vino_demo():
 
 
 def main(argv=None):
-    # FEATURETYPE = 'colorHist'
-    # FEATURETYPE = 'yolo'
-    # FEATURETYPE = 'origin'
-    # CLASSIFIERTYPE = 'SVC'
-    #FEATURETYPE = 'colorHist'
-    #FEATURETYPE = 'vino_reie'
-
-    #test_vino_reid()
-    #tmp_vino_reid()
-
-    # VINO REID EXPERIMENT(FOR SAVING BBOX)
-    #own_vino_reid()
     # VINO REID DEMO
-    own_vino_demo()
+    video_path = 'testSample/video/lab02-18-2p.mp4'
+    own_vino_demo(video_path)
 
 
 

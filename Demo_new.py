@@ -13,11 +13,14 @@ import numpy as np
 from calcHistogram import calcHistogram3D
 #from Demo_2_saveBox import TrackMod_dual, TrackMod, DET_THRESHOLD, MIN_DET_THRESHOLD
 
+from tracking.TrackMod import TrackMod
+
 from Demo_2_saveBox import TrackMod, DET_THRESHOLD, MIN_DET_THRESHOLD
 
 demo_mode = "VIDEO"
 # demo_mode = "CAM"
 
+"""
 VIDEO_PATH = './testSample/video/lab02-18-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-06-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-07-2p.mp4'
@@ -27,9 +30,10 @@ VIDEO_PATH = './testSample/video/lab02-18-2p.mp4'
 #VIDEO_PATH = './testVideo/test_a-01-09-2p.mp4'#OK
 #VIDEO_PATH = './testVideo/test_b-01-01-2p.mp4'#One mistake
 #VIDEO_PATH = './testVideo/test_b-02-02-2p.mp4'#Worst case
-VIDEO_PATH = './testVideo/test_b-03-02-2p.mp4'#OK
+#VIDEO_PATH = './testVideo/test_b-03-02-2p.mp4'#OK
 #VIDEO_PATH = './testVideo/test_a-05-10-2p.mp4'#Problem
-#VIDEO_PATH = './testVideo/test_a-02-03-2p.mp4'#BEST
+"""
+VIDEO_PATH = './testVideo/test_a-02-03-2p.mp4'#BEST
 
 
 def draw_panel(img_new, profile_list):
@@ -157,8 +161,8 @@ def demo_total(video_path):
 
         cv2.imshow("Tracking Result", panel)
 
-        print(frame_idx)
-        print('New')
+        #print(frame_idx)
+        #print('New')
         for trackRes in tracker.current_tracks:
             id = trackRes.id
             x1 = trackRes.tl[0]
@@ -168,7 +172,7 @@ def demo_total(video_path):
             last_state = trackRes.last_state
             type = trackRes.type
 
-            print(str(type) + ',' + str(id) + ',' + last_state + ',' + str(x1) + ',' + str(x2) + ',' + str(y1) + ',' + str(y2))
+            #print(str(type) + ',' + str(id) + ',' + last_state + ',' + str(x1) + ',' + str(x2) + ',' + str(y1) + ',' + str(y2))
 
 
 
@@ -222,7 +226,7 @@ def demo_single(video_path, old_tracker=False):
             panel = draw_panel(img_resize_draw, tracker.tracking.profile_classifier.profile_list)
         cv2.imshow("Tracking Result", panel)
 
-        print(frame_idx)
+        #print(frame_idx)
         for trackRes in tracker.current_tracks:
             id = trackRes.id
             x1 = trackRes.tl[0]
@@ -232,7 +236,7 @@ def demo_single(video_path, old_tracker=False):
             last_state = trackRes.last_state
             type = trackRes.type
 
-            print(str(type) + ',' + str(id) + ',' + last_state + ',' + str(x1) + ',' + str(x2) + ',' + str(y1) + ',' + str(y2))
+            #print(str(type) + ',' + str(id) + ',' + last_state + ',' + str(x1) + ',' + str(x2) + ',' + str(y1) + ',' + str(y2))
 
         frame_idx += 1
 

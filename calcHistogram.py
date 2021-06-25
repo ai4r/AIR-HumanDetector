@@ -1,12 +1,13 @@
 # calculate the color histogram
 
-import cv2.cv2 as cv2
+import cv2
+
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.spatial.distance import euclidean
 from scipy.spatial.distance import correlation
 
-def calcCropped(img, rect, cropped_ratio):
+def calcCropped(img, rect, cropped_ratio=(1.0,1.0)):
     w = rect[2]
     h = rect[3]
 
@@ -98,6 +99,25 @@ def calcHistFeature(img, rectList, bins=16, cropped_ratio=(0.8,0.8)):
     featureArr = np.asarray(featureList)
 
     return featureArr
+def calcOrigin(img, rectList, resize_ratio=(64, 64), cropped_ratio=(1.0, 1.0)):
+    featureList = []
+
+
+    for eachRect in rectList:
+        imgRect, x1, x2, y1, y2 = calcCropped(img, eachRect, cropped_ratio)
+
+        imgRectResize = cv2.resize(imgRect, resize_ratio)
+        imgRectConcatenate = np.concatenate(imgRectResize, axis=None)
+
+        cv2.normalize(imgRectConcatenate, imgRectConcatenate)
+
+        featureList.append(imgRectConcatenate)
+
+    featureArr = np.asarray(featureList)
+
+    return featureArr
+
+
 
 def calcHistogram3D(img, rectList, cropped_ratio=(0.8,0.8)):
     '''
@@ -120,6 +140,7 @@ def calcHistogram3D(img, rectList, cropped_ratio=(0.8,0.8)):
         featureList.append(histImgConcatenate)
 
     featureArr = np.asarray(featureList)
+
 
     return featureArr
 
@@ -155,28 +176,52 @@ def compareHistFeatureHSV(feature1, feature2):
 
 
 def test():
-    testImgPath = 'tmp/343_1.png'
-    testImg2Path = 'tmp/400_1.png'
+    test_ImgA_1_Path = 'testSample/out/24_0.png'
+    test_ImgA_2_Path = 'testSample/out/10_0.png'
 
-    testImg = cv2.imread(testImgPath)
-    testImg2 = cv2.imread(testImg2Path)
+    test_ImgB_1_Path = 'testSample/out/221_1.png'
+    test_ImgB_2_Path = 'testSample/out/492_1.png'
 
-    img1_hsv = cv2.cvtColor(testImg, cv2.COLOR_BGR2HSV)
-    img2_hsv = cv2.cvtColor(testImg2, cv2.COLOR_BGR2HSV)
+    test_ImgA_1 = cv2.imread(test_ImgA_1_Path)
+    test_ImgA_2 = cv2.imread(test_ImgA_2_Path)
+    test_ImgB_1 = cv2.imread(test_ImgB_1_Path)
+    test_ImgB_2 = cv2.imread(test_ImgB_2_Path)
 
-    hist_img1 = cv2.calcHist([img1_hsv], [0,1], None, [180,256], [0,180,0,256])
-    cv2.normalize(hist_img1, hist_img1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-    hist_img2 = cv2.calcHist([img2_hsv], [0, 1], None, [180, 256], [0, 180, 0, 256])
-    cv2.normalize(hist_img2, hist_img2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
 
-    metric_val = cv2.compareHist(hist_img1, hist_img2, cv2.HISTCMP_BHATTACHARYYA)
 
-    print(metric_val)
+    imgA_1_hsv = cv2.cvtColor(test_ImgA_1, cv2.COLOR_BGR2HSV)
+    imgA_2_hsv = cv2.cvtColor(test_ImgA_2, cv2.COLOR_BGR2HSV)
+
+    imgB_1_hsv = cv2.cvtColor(test_ImgB_1, cv2.COLOR_BGR2HSV)
+    imgB_2_hsv = cv2.cvtColor(test_ImgB_2, cv2.COLOR_BGR2HSV)
+
+
+    hist_imgA_1 = cv2.calcHist([imgA_1_hsv], [0,1], None, [180,256], [0,180,0,256])
+    cv2.normalize(hist_imgA_1, hist_imgA_1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    hist_imgA_2 = cv2.calcHist([imgA_2_hsv], [0, 1], None, [180, 256], [0, 180, 0, 256])
+    cv2.normalize(hist_imgA_2, hist_imgA_2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    hist_imgB_1 = cv2.calcHist([imgB_1_hsv], [0, 1], None, [180, 256], [0, 180, 0, 256])
+    cv2.normalize(hist_imgB_1, hist_imgB_1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    hist_imgB_2 = cv2.calcHist([imgB_2_hsv], [0, 1], None, [180, 256], [0, 180, 0, 256])
+    cv2.normalize(hist_imgB_2, hist_imgB_2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+    dist_intra_A = cv2.compareHist(hist_imgA_1, hist_imgA_2, cv2.HISTCMP_BHATTACHARYYA)
+    dist_intra_B = cv2.compareHist(hist_imgB_1, hist_imgB_2, cv2.HISTCMP_BHATTACHARYYA)
+    dist_inter_AB11 = cv2.compareHist(hist_imgA_1, hist_imgB_1, cv2.HISTCMP_BHATTACHARYYA)
+    dist_inter_AB12 = cv2.compareHist(hist_imgA_1, hist_imgB_2, cv2.HISTCMP_BHATTACHARYYA)
+    dist_inter_AB21 = cv2.compareHist(hist_imgA_2, hist_imgB_1, cv2.HISTCMP_BHATTACHARYYA)
+    dist_inter_AB22 = cv2.compareHist(hist_imgA_2, hist_imgB_2, cv2.HISTCMP_BHATTACHARYYA)
+
+
+    print('dist_intra_A: {}\ndist_intra_B: {}\ndist_inter_AB11: {}\ndist_inter_AB12:{}\ndist_inter_AB21: {}\ndist_inter_AB22: {}\n'.format(dist_intra_A, dist_intra_B, dist_inter_AB11, dist_inter_AB12, dist_inter_AB21, dist_inter_AB22))
 
 
 
 
 if __name__ == '__main__':
     #calcHistFeature(cv2.imread('test.jpg'), [[0,0,100,100], [0,20,30,50]])
-    calcHistogram3Dcropped(cv2.imread('test.jpg'), [[0,0,100,100]])
+    #calcHistogram3Dcropped(cv2.imread('test.jpg'), [[0,0,100,100]])
     test()

@@ -1,26 +1,15 @@
 import math
 import cv2
 import numpy as np
-from collections import deque
 import sys
-
 sys.path.append("../elm")
-
-
 import elm.Utilities as util
 
-import tracking.KCFTracker as KCFTracker
-#import tracking.TLDTracker as TLDTracker
-import tracking.MFTracker as MFTracker
-import tracking.TMTracker as TMTracker
-import tracking.KLTTracker as KLTTracker
+
 
 from openvino.vino_reidentification_module import get_distance_between_embeddings
 
 import Profile
-
-import elm.NaiveELM
-import elm.DataInput
 
 MAX_DELTA = (0.5, 0.5)
 MOVE_DELTA = (0.5, 0.5)
@@ -45,9 +34,7 @@ REGISTER_MODEL_OVERLAP_RATIO=0.2
 #ASSIGN_CONFIDENCE = 0.4
 ASSIGN_CONFIDENCE = 0.3
 
-is_ELM = False
-
-class Track:
+class Track_own:
     def __init__(self, type, x1, y1, x2, y2, conf, img=None, featureType=''):
         self.id = -1
         self.type = type
@@ -62,31 +49,18 @@ class Track:
         self.last_state = 'Init'
         self.last_rect = self.rect
         self.last_frame = -1
-        self.tracker = None
-
         self.featureType = featureType
-        self.tracker_type = ''
-        self.tracker_limit = 60
-        self.use_cmatch = False
 
         self.feature = None
-        self.pos_features = deque()
-        self.neg_features = deque()
-        self.keep_feature_count = KEEP_DATA_LENGTH
-        self.classifier = None
-        self.event_func = None
+
 
         if type == 'body':
             self.face = None
             self.upper = None
             self.bottom = None
 
-    def log(self, type, data):
-        if self.event_func is not None:
-            self.event_func(self, type, data)
-
     def match(self, new_trajectories):
-        if len(new_trajectories) == 0 :
+        if len(new_trajectories) == 0:
             return None
 
         best_nn = None
@@ -108,19 +82,11 @@ class Track:
         dh = new_track.rect[3] - self.rect[3]
         geo_dist = math.sqrt((dx * dx) + (dy * dy) + ((dw * dw) + (dh * dh) / 2))
 
-        if(self.featureType == 'yolo'):
-            feature_dist = 0
-            if self.feature is not None:
-                feature_dist = np.sum(np.sqrt(np.power(self.feature - new_track.feature, 2)))
-        elif(self.featureType == 'colorHist'):
-            feature_dist = 0
-            if self.feature is not None:
-                # calc method: 0: correlation(higher similar) 1: chi-square(lower similar) 2: intersection(higher similar) 3: bhattacharyya(lower similar)
-                feature_dist = 10*(1-cv2.compareHist(self.feature, new_track.feature, 0))
-        elif(self.featureType == 'vino_reid'):
+        if(self.featureType == 'vino_reid'):
             feature_dist = 0
             if self.feature is not None:
                 feature_dist = get_distance_between_embeddings(self.feature, new_track.feature)
+
         return geo_dist + feature_dist
 
     def match_body(self, new_trajectories):
@@ -151,7 +117,7 @@ class Track:
         best_tr = None
 
         for n_tr in new_trajectories:
-            if n_tr.id < 0 and n_tr.type == 'face' and util.is_in_rect(n_tr.rect, self.rect) :
+            if n_tr.id < 0 and n_tr.type == 'face' and util.is_in_rect(n_tr.rect, self.rect):
                 if n_tr.confidence > best_conf:
                     best_conf = n_tr.confidence
                     best_tr = n_tr
@@ -184,8 +150,8 @@ class Track:
 
         return best_tr
 
+    '''
     def find(self, img, last_img, candidate_features = (), candidate_tracks = (), feature_func=None):
-
         # Find by online-learner
         if self.use_cmatch and self.type == 'body' and self.classifier is not None and len(candidate_features) > 0:
             data = np.array(candidate_features)
@@ -265,11 +231,9 @@ class Track:
                     test_data = elm.DataInput.DataSet(data, None)
                     resp = self.classifier.predict(test_data.images)
 
-                '''
+                
                 if resp[0][1] < 0.5:
                     return None
-                '''
-
             n_tr = Track('[Update]', new_roi[0], new_roi[1], new_roi[0] + new_roi[2], new_roi[1] + new_roi[3], self.tracker.confidence, None, featureType=self.featureType)
             if self.last_state == 'Search':
                 self.tracking_count += 1
@@ -277,7 +241,7 @@ class Track:
                     return None
 
         return n_tr
-
+    '''
     def update(self, newTr, img, new_weight=1.0, candidate_features = ()):
         self.last_rect = self.rect
 
@@ -313,47 +277,6 @@ class Track:
             self.rect = [x, y, w, h]
 
         self.confidence = newTr.confidence
-
-        # On-line detector training
-        if self.use_cmatch and self.type == 'body' and self.last_state in ['Match']: #, 'Search']:
-            self.pos_features.append(self.feature)
-            if candidate_features is not None and len(candidate_features) > 0:
-                idx = np.random.randint(0, len(candidate_features))
-                # for idx in range(len(candidate_features)):
-                self.neg_features.append(candidate_features[idx])
-
-            if len(self.pos_features) >= self.keep_feature_count :
-                train_data = []
-                train_data.extend(self.pos_features)
-                train_data.extend(self.neg_features)
-                train_data = np.array(train_data)
-                train_label = np.zeros(shape=(train_data.shape[0], 2))
-
-                for ri in range(train_data.shape[0]):
-                    if ri < len(self.pos_features):
-                        train_label[ri][1] = 1
-                    else:
-                        train_label[ri][0] = 1
-                if is_ELM:
-                    ds = elm.DataInput.DataSets.create(train_data, train_label)
-                
-                if is_ELM:
-                    if self.classifier is None:
-                        e = elm.NaiveELM.ELM()
-                        e.device = '/cpu:0'
-                        e.init_weight(ds, int(KEEP_DATA_LENGTH * CM_NODE_RATIO))
-                        e.train_os(ds)
-                        self.classifier = e
-                        self.keep_feature_count = 1
-                        self.pos_features.clear()
-                        self.neg_features.clear()
-
-                        self.log('Message','Track-%d online learning started' % self.id)
-
-                    elif len(self.pos_features) > 0 and len(self.neg_features) > 0 :
-                        self.classifier.train_os(ds, is_update=True)
-                        self.pos_features.clear()
-                        self.neg_features.clear()
 
     def update_parts(self, new_trajectories, img):
         if self.type == 'body':
@@ -391,26 +314,8 @@ class Track:
             else:
                 self.bottom = update_part(self.bottom)
 
-    def draw(self, img):
-        if self.last_state == 'Match' or self.last_state == 'Init':
-            c = (100, 255, 100)
-        elif self.last_state == 'CMatch':
-            c = (0, 255, 255)
-        elif self.last_state == 'Search':
-            c = (100, 100, 255)
-        else:
-            raise Exception('Invalid state = %s' % self.last_state)
-
-        cv2.rectangle(img, self.tl, self.br, c, 2)
-        pt3 = (self.tl[0], self.tl[1] + 15)
-        cv2.putText(img, '%s (%.2f)' % (self.type, self.confidence), pt3,
-                        fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=0.3, color=c)
-
-        if self.type == 'body' and self.face is not None:
-            self.face.draw(img)
-
     def copy(self):
-        t = Track(self.type, self.tl[0], self.tl[1], self.br[0], self.br[1], self.confidence, featureType=self.featureType)
+        t = Track_own(self.type, self.tl[0], self.tl[1], self.br[0], self.br[1], self.confidence, featureType=self.featureType)
         t.dx = self.dx
         t.dy = self.dy
         t.last_state = self.last_state
@@ -426,14 +331,11 @@ class Track:
     def area(self):
         return self.rect[2] * self.rect[3]
 
-class Tracking:
+class Tracking_own:
     def __init__(self, tracker_type='', tracker_limit=60, use_cmatch=False, featureType='', classifierType=''):
         self.UID = 0
-        self.tracker_type = tracker_type
         self.featureType = featureType
         self.classifierType = classifierType
-        self.tracker_limit = tracker_limit
-        self.use_cmatch = use_cmatch
 
         self.frameNo = 0
         self.candidate_features = None
@@ -443,10 +345,9 @@ class Tracking:
         self.feature_func = None
         self.event_func = None
         self.profile_classifier = Profile.ProfileClassifier(self.classifierType)
+    def find(self, img, last_image, new_list):
+        pass
 
-    def log(self, type, data):
-        if self.event_func is not None:
-            self.event_func(self, type, data)
 
     def update(self, old_list, new_list, img):
         found_uid_list = []
@@ -460,17 +361,14 @@ class Tracking:
         # Update existing one
         for tr_idx, tr_area in area_list:
             tr = old_list[tr_idx]
-            tr.tracker_type = self.tracker_type
-            tr.tracker_limit = self.tracker_limit
-            tr.use_cmatch = self.use_cmatch
-            tr.event_func = self.event_func
 
             n_tr = tr.match(new_list)
 
             # Lost, Search!
             if n_tr is None:
-                n_tr = tr.find(img, last_img=self.LAST_IMAGE, feature_func=self.feature_func,
-                               candidate_features=self.candidate_features, candidate_tracks=self.candidate_tracks)
+                # FIND the lost
+                #n_tr = tr.find(img, last_img=self.LAST_IMAGE, feature_func=self.feature_func,candidate_features=self.candidate_features, candidate_tracks=self.candidate_tracks)
+                print('k')
 
                 # Search Succeed
                 if n_tr is not None :
@@ -500,8 +398,7 @@ class Tracking:
         # Remove lost target from old list
         for tr in lost_target:
             old_list.remove(tr)
-            self.log('Message', 'Track-%d lost' % tr.id)
-
+            
             # Add consistent track to lost tracks pool for later recall
             if tr.match_count > RECALL_MATCH_THRESHOLD:
                 self.lost_tracks.append(tr)
@@ -559,7 +456,6 @@ class Tracking:
                                 n_tr.id = tr.id
                                 n_tr.classifier = tr.classifier
                                 tr.id = -1
-                                self.log('Message', 'Track-%d observed before %d frames' % (n_tr.id, time_diff))
                                 break
 
 
@@ -635,8 +531,6 @@ class Tracking:
             if tr.id >= 0:
                 if time_diff <= RECALL_LENGTH:
                     lost_target.append(tr)
-                else:
-                    self.log('Message', 'Track-%d forgotten' % tr.id)
 
         self.lost_tracks = lost_target
 
@@ -673,20 +567,3 @@ class Tracking:
 
         self.LAST_IMAGE = img
         self.frameNo += 1
-
-
-if __name__ == "__main__":
-    # Sorting test
-    tracks = []
-    tracks.append(Track('Body', 0, 0, 50, 50, 0.5))
-    tracks.append(Track('Body', 0, 0, 70, 70, 0.5))
-    tracks.append(Track('Body', 0, 0, 60, 100, 0.5))
-    tracks.append(Track('Body', 0, 0, 80, 80, 0.5))
-
-    for t in tracks:
-        print(t.rect)
-
-    tracks = sorted(tracks, reverse=True)
-    print('-------------------------------------------------')
-    for t in tracks:
-        print(t.rect, t.rect[2] * t.rect[3])
